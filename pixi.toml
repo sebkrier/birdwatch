@@ -1,0 +1,25 @@
+[workspace]
+name = "birdwatch"
+version = "0.1.0"
+channels = ["conda-forge"]
+platforms = ["linux-64"]
+
+[dependencies]
+python = "3.11.*"
+uv = "*"
+postgresql = "16.*"
+pgvector = "*"
+umap-learn = "*"
+hdbscan = "*"
+numpy = "*"
+scipy = "*"
+scikit-learn = "*"
+google-generativeai = ">=0.8.6,<0.9"
+
+[tasks]
+dev = "uvicorn app.main:app --reload --port 8001"
+test = "pytest -v --tb=short"
+db-start = "pg_ctl -D .pgdata -l .pgdata/logfile -o '-p 5434' start"
+db-stop = "pg_ctl -D .pgdata stop"
+db-init = "bash -c 'initdb -D .pgdata && pg_ctl -D .pgdata -l .pgdata/logfile -o \"-p 5434\" start && sleep 2 && createdb -p 5434 birdwatch && createdb -p 5434 birdwatch_test'"
+db-schema = "psql -p 5434 birdwatch -f app/db/schema.sql"

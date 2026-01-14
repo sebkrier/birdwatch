@@ -1,0 +1,580 @@
+{% extends "base.html" %}
+
+{% block title %}Explore - Birdwatch{% endblock %}
+
+{% block head %}
+<script src="https://unpkg.com/deck.gl@8.9.35/dist.min.js"></script>
+<style>
+.category-chip {
+    display: inline-block;
+    padding: 4px 12px;
+    border-radius: 16px;
+    font-size: 12px;
+    margin: 2px;
+    cursor: pointer;
+    transition: all 0.2s;
+    border: 2px solid transparent;
+}
+.category-chip:hover {
+    transform: scale(1.05);
+}
+.category-chip.active {
+    border-color: white;
+}
+.subcluster-chip {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 11px;
+    margin: 1px;
+    cursor: pointer;
+    background: rgba(255,255,255,0.1);
+    transition: all 0.2s;
+}
+.subcluster-chip:hover {
+    background: rgba(255,255,255,0.2);
+}
+#deck-canvas {
+    width: 100%;
+    height: 100%;
+    position: absolute;
+    top: 0;
+    left: 0;
+}
+.tooltip {
+    position: absolute;
+    padding: 8px 12px;
+    background: rgba(0, 0, 0, 0.9);
+    color: white;
+    border-radius: 4px;
+    font-size: 12px;
+    max-width: 300px;
+    pointer-events: none;
+    z-index: 100;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <div class="flex justify-between items-center">
+        <div>
+            <h1 class="text-2xl font-bold">Explore Your Tweets</h1>
+            <p class="text-gray-400">{{ categories|length }} categories, 84 sub-clusters</p>
+        </div>
+        <a href="/explore/categories" class="text-blue-400 hover:underline">View all categories &rarr;</a>
+    </div>
+
+    <!-- Control Panel -->
+    <div class="bg-gray-800 rounded-lg p-4">
+        <div class="flex flex-wrap items-center gap-6">
+            <div class="flex items-center gap-3">
+                <span class="text-sm text-gray-400">Date Range:</span>
+                <input type="date" id="date-from" class="px-2 py-1 bg-gray-700 border border-gray-600 rounded text-sm focus:outline-none focus:border-blue-500">
+                <span class="text-gray-500">to</span>
+                <input type="date" id="date-to" class="px-2 py-1 bg-gray-700 border border-gray-600 rounded text-sm focus:outline-none focus:border-blue-500">
+            </div>
+            <div class="flex items-center gap-4">
+                <label class="flex items-center gap-2 text-sm text-gray-400 cursor-pointer">
+                    <input type="checkbox" id="include-retweets" checked class="rounded">
+                    <span>Include RTs</span>
+                </label>
+                <label class="flex items-center gap-2 text-sm text-gray-400 cursor-pointer">
+                    <input type="checkbox" id="include-replies" checked class="rounded">
+                    <span>Include Replies</span>
+                </label>
+            </div>
+            <div id="filter-stats" class="text-sm text-gray-500 ml-auto">
+                Showing <span id="visible-count">0</span> of <span id="total-count">0</span> tweets
+            </div>
+        </div>
+    </div>
+
+    <div id="visualization" class="bg-gray-800 rounded-lg relative" style="height: 600px;">
+        <div id="loading-indicator" class="absolute inset-0 flex items-center justify-center text-gray-400 z-10">
+            <svg class="animate-spin h-8 w-8 mr-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            Loading visualization...
+        </div>
+        <canvas id="deck-canvas"></canvas>
+        <div id="tooltip" class="tooltip hidden"></div>
+    </div>
+
+    <div class="bg-gray-800 rounded-lg p-4">
+        <div class="flex justify-between items-center mb-3">
+            <h3 class="text-lg font-semibold">Categories</h3>
+            <button id="reset-filter" class="text-sm text-gray-400 hover:text-white hidden" onclick="resetFilter()">
+                Clear filter &times;
+            </button>
+        </div>
+
+        <div id="category-chips" class="flex flex-wrap gap-2">
+            {% for cat in categories %}
+            <span class="category-chip text-white"
+                  style="background-color: {{ cat.color or '#6b7280' }};"
+                  data-category-id="{{ cat.id }}"
+                  onclick="filterCategory({{ cat.id }}, '{{ cat.name }}')"
+                  title="{{ cat.tweet_count }} tweets">
+                {{ cat.name }} ({{ cat.tweet_count }})
+            </span>
+            {% endfor %}
+        </div>
+
+        <!-- Subclusters for selected category -->
+        <div id="subclusters-section" class="hidden mt-4 pt-4 border-t border-gray-700">
+            <div class="text-xs text-gray-500 mb-2">SUB-CLUSTERS IN <span id="selected-category-name"></span></div>
+            <div id="subcluster-chips" class="flex flex-wrap gap-1">
+            </div>
+        </div>
+    </div>
+
+    <div id="tweet-preview" class="hidden bg-gray-800 rounded-lg p-4">
+        <h3 class="text-lg font-semibold mb-2">Selected Tweet</h3>
+        <p id="preview-text" class="text-gray-300 whitespace-pre-wrap"></p>
+        <div id="preview-categories" class="flex flex-wrap gap-1 mt-2"></div>
+        <div id="preview-meta" class="flex items-center gap-4 mt-3 text-sm text-gray-400">
+            <span id="preview-date"></span>
+            <span class="flex items-center gap-1">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                </svg>
+                <span id="preview-retweets">0</span>
+            </span>
+            <span class="flex items-center gap-1">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"></path>
+                </svg>
+                <span id="preview-likes">0</span>
+            </span>
+        </div>
+        <div class="flex gap-3 mt-3">
+            <a id="preview-link" href="#" class="text-blue-400 hover:underline text-sm">View full tweet &rarr;</a>
+            <button id="find-similar-btn" class="text-green-400 hover:underline text-sm" onclick="findSimilar()">Find similar &rarr;</button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Check if deck.gl is loaded
+if (typeof deck === 'undefined') {
+    console.error('Deck.gl not loaded!');
+    document.getElementById('loading-indicator').innerHTML =
+        '<div class="text-red-400">Error: Deck.gl library failed to load. Check your internet connection.</div>';
+}
+
+const { Deck, ScatterplotLayer } = deck || {};
+
+let deckgl = null;
+let allPoints = [];
+let filteredPoints = [];
+let displayedPoints = [];  // Points after all filters applied
+let categories = {};
+let subclusters = {};
+let selectedTweetId = null;
+let activeCategory = null;
+
+// Filter state
+let filters = {
+    dateFrom: null,
+    dateTo: null,
+    includeRetweets: true,
+    includeReplies: true
+};
+
+// Parse hex color to RGB array
+function hexToRgb(hex) {
+    if (!hex) return [107, 114, 128]; // gray default
+    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+    return result ? [
+        parseInt(result[1], 16),
+        parseInt(result[2], 16),
+        parseInt(result[3], 16)
+    ] : [107, 114, 128];
+}
+
+async function loadVisualization() {
+    try {
+        const response = await fetch('/explore/data?_=' + Date.now());  // Cache bust
+        if (!response.ok) {
+            throw new Error(`HTTP error: ${response.status}`);
+        }
+        const data = await response.json();
+        console.log('Loaded data:', Object.keys(data), 'points:', data.points?.length);
+
+        // Debug: log sample points with colors
+        const coloredPoints = data.points.filter(p => p.category_color);
+        console.log('Points with color:', coloredPoints.length);
+        if (coloredPoints.length > 0) {
+            console.log('Sample colored point:', coloredPoints[0]);
+        }
+
+        allPoints = data.points || [];
+        filteredPoints = allPoints;
+        displayedPoints = allPoints;
+
+        // Debug: check what keys are in the data
+        if (allPoints.length > 0) {
+            console.log('[data] Keys in first point:', Object.keys(allPoints[0]));
+            console.log('[data] First point is_retweet:', allPoints[0].is_retweet);
+            console.log('[data] First point is_reply:', allPoints[0].is_reply);
+        }
+
+        // Set up date range from data
+        if (allPoints.length > 0) {
+            const dates = allPoints
+                .filter(p => p.created_at)
+                .map(p => new Date(p.created_at));
+            if (dates.length > 0) {
+                const minDate = new Date(Math.min(...dates));
+                const maxDate = new Date(Math.max(...dates));
+                document.getElementById('date-from').min = minDate.toISOString().split('T')[0];
+                document.getElementById('date-from').max = maxDate.toISOString().split('T')[0];
+                document.getElementById('date-to').min = minDate.toISOString().split('T')[0];
+                document.getElementById('date-to').max = maxDate.toISOString().split('T')[0];
+            }
+        }
+
+        // Update stats
+        document.getElementById('total-count').textContent = allPoints.length;
+        document.getElementById('visible-count').textContent = allPoints.length;
+
+        // Build lookup maps
+        if (data.categories) {
+            data.categories.forEach(c => {
+                categories[c.id] = c;
+            });
+        }
+        if (data.subclusters) {
+            data.subclusters.forEach(s => {
+                subclusters[s.id] = s;
+            });
+        }
+
+        if (!allPoints || allPoints.length === 0) {
+            document.getElementById('visualization').innerHTML =
+                '<div class="flex items-center justify-center h-full text-gray-400">' +
+                'No visualization data. Import tweets and run clustering first.' +
+                '</div>';
+            return;
+        }
+
+        // Calculate bounds for initial view
+        const xs = allPoints.map(p => p.x);
+        const ys = allPoints.map(p => p.y);
+        const minX = Math.min(...xs), maxX = Math.max(...xs);
+        const minY = Math.min(...ys), maxY = Math.max(...ys);
+        const centerX = (minX + maxX) / 2;
+        const centerY = (minY + maxY) / 2;
+
+        // Initialize Deck.gl
+        deckgl = new Deck({
+            canvas: 'deck-canvas',
+            initialViewState: {
+                longitude: centerX,
+                latitude: centerY,
+                zoom: 3,
+                minZoom: 1,
+                maxZoom: 10,
+            },
+            controller: true,
+            layers: [createScatterLayer(allPoints)],
+            getTooltip: ({object}) => object && {
+                html: `<div style="max-width: 250px">${object.text_preview}...</div>`,
+                style: {
+                    backgroundColor: 'rgba(0, 0, 0, 0.9)',
+                    color: 'white',
+                    padding: '8px',
+                    borderRadius: '4px',
+                    fontSize: '12px'
+                }
+            },
+            onClick: (info) => {
+                console.log('Deck.gl click:', info);
+                if (info.object) {
+                    console.log('Clicked tweet:', info.object.id);
+                    showTweetPreview(info.object.id);
+                }
+            }
+        });
+
+        // Hide loading indicator
+        document.getElementById('loading-indicator').style.display = 'none';
+
+        // Debug: check canvas and container
+        const canvas = document.getElementById('deck-canvas');
+        const container = document.getElementById('visualization');
+        console.log('Canvas size:', canvas?.width, 'x', canvas?.height);
+        console.log('Container size:', container?.offsetWidth, 'x', container?.offsetHeight);
+        console.log('Visualization loaded successfully. deckgl:', deckgl ? 'initialized' : 'null');
+
+    } catch (error) {
+        console.error('Error loading visualization:', error);
+        document.getElementById('loading-indicator').style.display = 'none';
+        document.getElementById('visualization').innerHTML =
+            '<div class="flex items-center justify-center h-full text-red-400 p-4 text-center">' +
+            '<div>Error loading visualization: ' + error.message + '<br/>' +
+            '<small class="text-gray-500">Check browser console for details</small></div>' +
+            '</div>';
+    }
+}
+
+function createScatterLayer(points, highlightCategory = null) {
+    console.log('[layer] Creating scatter layer with', points.length, 'points, highlight:', highlightCategory);
+    return new ScatterplotLayer({
+        id: 'scatter-' + points.length + '-' + (highlightCategory || 'all'),  // Unique ID forces re-render
+        data: points,
+        pickable: true,
+        opacity: 0.8,
+        stroked: false,
+        filled: true,
+        radiusScale: 1,
+        radiusMinPixels: 3,
+        radiusMaxPixels: 10,
+        getPosition: d => [d.x, d.y],
+        getRadius: d => {
+            if (highlightCategory && d.category_id !== highlightCategory) return 2;
+            return 5;
+        },
+        getFillColor: d => {
+            const color = hexToRgb(d.category_color);
+            if (highlightCategory && d.category_id !== highlightCategory) {
+                return [...color, 50]; // Dim non-matching
+            }
+            return [...color, 200];
+        },
+        updateTriggers: {
+            getRadius: highlightCategory,
+            getFillColor: highlightCategory
+        }
+    });
+}
+
+function filterCategory(categoryId, categoryName) {
+    console.log('filterCategory called:', categoryId, categoryName);
+    activeCategory = categoryId;
+
+    // Update chip styling
+    document.querySelectorAll('.category-chip').forEach(chip => {
+        chip.classList.remove('active');
+    });
+    const activeChip = document.querySelector(`[data-category-id="${categoryId}"]`);
+    if (activeChip) activeChip.classList.add('active');
+
+    // Show reset button
+    document.getElementById('reset-filter').classList.remove('hidden');
+
+    // Get base points (with date/RT/reply filters applied)
+    const basePoints = displayedPoints.length > 0 ? displayedPoints : allPoints;
+
+    // Filter points by category
+    filteredPoints = basePoints.filter(p => p.category_id === categoryId);
+    console.log('Filtered to', filteredPoints.length, 'points');
+
+    // Update layer - use basePoints (filtered by controls) not allPoints
+    if (deckgl) {
+        deckgl.setProps({
+            layers: [createScatterLayer(basePoints, categoryId)]
+        });
+    } else {
+        console.error('deckgl not initialized');
+    }
+
+    // Show subclusters for this category
+    showSubclusters(categoryId, categoryName);
+}
+
+function showSubclusters(categoryId, categoryName) {
+    const section = document.getElementById('subclusters-section');
+    const nameSpan = document.getElementById('selected-category-name');
+    const chipsDiv = document.getElementById('subcluster-chips');
+
+    nameSpan.textContent = categoryName.toUpperCase();
+
+    // Get subclusters for this category
+    const catSubclusters = Object.values(subclusters).filter(s => s.category_id === categoryId);
+
+    chipsDiv.innerHTML = catSubclusters.map(s =>
+        `<span class="subcluster-chip text-gray-300" onclick="filterSubcluster(${s.id})">${s.label} (${s.tweet_count})</span>`
+    ).join('');
+
+    section.classList.remove('hidden');
+}
+
+function filterSubcluster(subclusterId) {
+    console.log('filterSubcluster called:', subclusterId, 'type:', typeof subclusterId);
+
+    // Ensure subclusterId is a number for comparison
+    const targetId = Number(subclusterId);
+
+    // Get base points (with date/RT/reply filters applied)
+    const basePoints = displayedPoints.length > 0 ? displayedPoints : allPoints;
+
+    // Filter to just this subcluster's tweets
+    filteredPoints = basePoints.filter(p => p.subcluster_id === targetId);
+    console.log('Points matching subcluster:', filteredPoints.length);
+
+    // Create a custom layer highlighting this subcluster
+    deckgl.setProps({
+        layers: [new ScatterplotLayer({
+            id: 'scatter',
+            data: basePoints,
+            pickable: true,
+            opacity: 0.8,
+            stroked: false,
+            filled: true,
+            radiusScale: 1,
+            radiusMinPixels: 3,
+            radiusMaxPixels: 10,
+            getPosition: d => [d.x, d.y],
+            getRadius: d => d.subcluster_id === targetId ? 6 : 2,
+            getFillColor: d => {
+                const color = hexToRgb(d.category_color);
+                if (d.subcluster_id === targetId) {
+                    return [...color, 255];
+                }
+                return [...color, 30];
+            },
+            updateTriggers: {
+                getRadius: targetId,
+                getFillColor: targetId
+            }
+        })]
+    });
+}
+
+function resetFilter() {
+    activeCategory = null;
+
+    // Get base points (with date/RT/reply filters applied)
+    const basePoints = displayedPoints.length > 0 ? displayedPoints : allPoints;
+    filteredPoints = basePoints;
+
+    // Reset chip styling
+    document.querySelectorAll('.category-chip').forEach(chip => {
+        chip.classList.remove('active');
+    });
+
+    // Hide reset button
+    document.getElementById('reset-filter').classList.add('hidden');
+
+    // Hide subclusters
+    document.getElementById('subclusters-section').classList.add('hidden');
+
+    // Reset layer - use basePoints not allPoints
+    deckgl.setProps({
+        layers: [createScatterLayer(basePoints)]
+    });
+}
+
+async function showTweetPreview(tweetId) {
+    selectedTweetId = tweetId;
+
+    try {
+        const resp = await fetch(`/explore/tweet/${tweetId}`);
+        const tweet = await resp.json();
+
+        document.getElementById('preview-text').textContent = tweet.full_text;
+        document.getElementById('preview-date').textContent = new Date(tweet.created_at).toLocaleDateString('en-US', {
+            year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
+        });
+        document.getElementById('preview-retweets').textContent = tweet.retweet_count || 0;
+        document.getElementById('preview-likes').textContent = tweet.favorite_count || 0;
+        document.getElementById('preview-link').href = `/tweet/${tweetId}`;
+
+        // Show categories
+        const categoriesDiv = document.getElementById('preview-categories');
+        if (tweet.categories && tweet.categories.length > 0) {
+            categoriesDiv.innerHTML = tweet.categories.map(c =>
+                `<span class="text-xs px-2 py-1 rounded" style="background-color: ${c.color}">${c.name}</span>`
+            ).join('');
+        } else {
+            categoriesDiv.innerHTML = '';
+        }
+
+        document.getElementById('tweet-preview').classList.remove('hidden');
+    } catch (err) {
+        console.error('Error fetching tweet:', err);
+    }
+}
+
+function findSimilar() {
+    if (selectedTweetId) {
+        window.location.href = `/search?similar_to=${selectedTweetId}`;
+    }
+}
+
+// Apply all filters and update visualization
+function applyFilters() {
+    console.log('[filter] applyFilters called');
+    const dateFrom = document.getElementById('date-from').value;
+    const dateTo = document.getElementById('date-to').value;
+    const includeRetweets = document.getElementById('include-retweets').checked;
+    const includeReplies = document.getElementById('include-replies').checked;
+
+    console.log('[filter] Settings:', { dateFrom, dateTo, includeRetweets, includeReplies });
+    console.log('[filter] allPoints count:', allPoints.length);
+
+    filters = { dateFrom, dateTo, includeRetweets, includeReplies };
+
+    // Count RTs and replies in data
+    const rtCount = allPoints.filter(p => p.is_retweet === true).length;
+    const replyCount = allPoints.filter(p => p.is_reply === true).length;
+    console.log('[filter] RTs in data:', rtCount, 'Replies in data:', replyCount);
+
+    // Debug: show sample point's is_retweet value and type
+    if (allPoints.length > 0) {
+        const sample = allPoints.find(p => p.is_retweet) || allPoints[0];
+        console.log('[filter] Sample point is_retweet:', sample.is_retweet, 'type:', typeof sample.is_retweet);
+        console.log('[filter] Sample point is_reply:', sample.is_reply, 'type:', typeof sample.is_reply);
+    }
+
+    // Filter points
+    displayedPoints = allPoints.filter(p => {
+        // Date filter
+        if (dateFrom && p.created_at) {
+            const pointDate = new Date(p.created_at).toISOString().split('T')[0];
+            if (pointDate < dateFrom) return false;
+        }
+        if (dateTo && p.created_at) {
+            const pointDate = new Date(p.created_at).toISOString().split('T')[0];
+            if (pointDate > dateTo) return false;
+        }
+        // RT/Reply filters
+        if (!includeRetweets && p.is_retweet === true) return false;
+        if (!includeReplies && p.is_reply === true) return false;
+        return true;
+    });
+
+    // Also apply category filter if active
+    if (activeCategory) {
+        filteredPoints = displayedPoints.filter(p => p.category_id === activeCategory);
+    } else {
+        filteredPoints = displayedPoints;
+    }
+
+    // Update stats
+    document.getElementById('visible-count').textContent = displayedPoints.length;
+
+    // Update visualization
+    if (deckgl) {
+        deckgl.setProps({
+            layers: [createScatterLayer(displayedPoints, activeCategory)]
+        });
+    }
+
+    console.log(`[filter] Showing ${displayedPoints.length} of ${allPoints.length} points`);
+}
+
+// Set up filter event listeners
+document.getElementById('date-from').addEventListener('change', applyFilters);
+document.getElementById('date-to').addEventListener('change', applyFilters);
+document.getElementById('include-retweets').addEventListener('change', applyFilters);
+document.getElementById('include-replies').addEventListener('change', applyFilters);
+
+loadVisualization();
+</script>
+{% endblock %}

@@ -1,0 +1,182 @@
+{% extends "base.html" %}
+
+{% block title %}Birdwatch - Search Your Tweets{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <div class="text-center space-y-2">
+        <h1 class="text-3xl font-bold">Search Your Twitter Archive</h1>
+        <p class="text-gray-400">Find tweets by keyword or phrase (e.g., "machine learning", "startup advice")</p>
+    </div>
+
+    <form id="search-form" class="max-w-3xl mx-auto space-y-4"
+          hx-get="/search"
+          hx-target="#results"
+          hx-trigger="submit"
+          hx-indicator="#spinner">
+
+        <!-- Search input -->
+        <div class="flex gap-2">
+            <div class="relative flex-1">
+                <input type="text"
+                       id="search-input"
+                       name="q"
+                       placeholder="Search your tweets..."
+                       class="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg focus:outline-none focus:border-blue-500 text-lg">
+                <div id="spinner" class="htmx-indicator absolute right-4 top-1/2 -translate-y-1/2">
+                    <svg class="animate-spin h-5 w-5 text-blue-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                </div>
+            </div>
+            <button type="submit"
+                    class="px-6 py-3 bg-blue-600 hover:bg-blue-700 rounded-lg font-medium transition-colors">
+                Search
+            </button>
+        </div>
+
+        <!-- Filters -->
+        <div class="bg-gray-800 rounded-lg p-4 space-y-4">
+            <!-- Sort, Mode, and Include/Exclude - all visible -->
+            <div class="flex flex-wrap items-center gap-6 text-sm">
+                <!-- Sort -->
+                <div class="flex items-center gap-2">
+                    <span class="text-gray-400">Sort:</span>
+                    <select name="sort" class="bg-gray-700 border border-gray-600 rounded px-2 py-1 text-sm">
+                        <option value="relevance">Relevance</option>
+                        <option value="date_desc">Newest first</option>
+                        <option value="date_asc">Oldest first</option>
+                        <option value="likes">Most liked</option>
+                        <option value="retweets">Most retweeted</option>
+                        <option value="longest">Longest</option>
+                    </select>
+                </div>
+
+                <!-- Include/exclude checkboxes - NOW VISIBLE -->
+                <label class="flex items-center gap-1 cursor-pointer">
+                    <input type="checkbox" name="include_retweets" value="true" checked class="rounded">
+                    <span>RTs</span>
+                </label>
+                <label class="flex items-center gap-1 cursor-pointer">
+                    <input type="checkbox" name="include_replies" value="true" checked class="rounded">
+                    <span>Replies</span>
+                </label>
+
+                <!-- Category filter -->
+                <div class="flex items-center gap-2">
+                    <span class="text-gray-400">Category:</span>
+                    <select name="category_id" class="bg-gray-700 border border-gray-600 rounded px-2 py-1 text-sm">
+                        <option value="">All</option>
+                        {% for cat in categories %}
+                        <option value="{{ cat.id }}">{{ cat.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+
+            <!-- Toggle filters -->
+            <button type="button" onclick="toggleFilters()" class="text-sm text-blue-400 hover:underline flex items-center gap-1">
+                <svg id="filter-chevron" class="w-4 h-4 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                </svg>
+                More Filters
+            </button>
+
+            <!-- Advanced filters (collapsible) -->
+            <div id="advanced-filters" class="hidden space-y-4 pt-4 border-t border-gray-700">
+                <!-- Date range -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm text-gray-400 mb-1">From date</label>
+                        <input type="date" name="date_from"
+                               class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded focus:outline-none focus:border-blue-500 text-sm">
+                    </div>
+                    <div>
+                        <label class="block text-sm text-gray-400 mb-1">To date</label>
+                        <input type="date" name="date_to"
+                               class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded focus:outline-none focus:border-blue-500 text-sm">
+                    </div>
+                </div>
+
+                <!-- Mode (moved to advanced since less commonly used) -->
+                <div class="flex flex-wrap gap-4 text-sm">
+                    <span class="text-gray-400">Search mode:</span>
+                    <label class="flex items-center gap-1 cursor-pointer">
+                        <input type="radio" name="mode" value="text" checked class="text-blue-500">
+                        <span>Text</span>
+                    </label>
+                    <label class="flex items-center gap-1 cursor-pointer">
+                        <input type="radio" name="mode" value="semantic" class="text-blue-500">
+                        <span>Semantic</span>
+                    </label>
+                    <label class="flex items-center gap-1 cursor-pointer">
+                        <input type="radio" name="mode" value="hybrid" class="text-blue-500">
+                        <span>Hybrid</span>
+                    </label>
+                </div>
+            </div>
+        </div>
+    </form>
+
+    <div id="results" class="space-y-4 max-w-3xl mx-auto">
+        <!-- Search results will be loaded here -->
+    </div>
+</div>
+
+<script>
+function toggleFilters() {
+    const filters = document.getElementById('advanced-filters');
+    const chevron = document.getElementById('filter-chevron');
+    filters.classList.toggle('hidden');
+    chevron.classList.toggle('rotate-180');
+}
+
+// Manual search function as fallback
+async function doSearch() {
+    const form = document.getElementById('search-form');
+    const formData = new FormData(form);
+    const params = new URLSearchParams(formData);
+    const resultsDiv = document.getElementById('results');
+
+    // Debug: log what we're sending
+    console.log('Search params:', params.toString());
+
+    resultsDiv.innerHTML = '<div class="text-center py-8 text-gray-400">Searching...</div>';
+
+    try {
+        const response = await fetch('/search?' + params.toString());
+        if (!response.ok) {
+            throw new Error(`Server error: ${response.status}`);
+        }
+        const html = await response.text();
+        resultsDiv.innerHTML = html;
+    } catch (err) {
+        console.error('Search error:', err);
+        resultsDiv.innerHTML = `<div class="text-center py-8 text-red-400">
+            <p>Error: ${err.message}</p>
+            <p class="text-sm text-gray-500 mt-2">Make sure the server is running</p>
+        </div>`;
+    }
+}
+
+// Handle form submission
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.getElementById('search-form');
+    form.addEventListener('submit', function(e) {
+        e.preventDefault();
+        doSearch();
+    });
+
+    // Handle URL params on page load (for similar_to links)
+    const params = new URLSearchParams(window.location.search);
+    const similarTo = params.get('similar_to');
+    if (similarTo) {
+        fetch(`/search?similar_to=${similarTo}`)
+            .then(r => r.text())
+            .then(html => document.getElementById('results').innerHTML = html)
+            .catch(err => console.error('Error loading similar:', err));
+    }
+});
+</script>
+{% endblock %}

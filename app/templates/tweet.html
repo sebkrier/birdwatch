@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+
+{% block title %}Tweet - Birdwatch{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto space-y-6">
+    <!-- Thread context -->
+    {% if thread and thread|length > 1 %}
+    <div class="border-l-2 border-gray-700 pl-4 space-y-4">
+        <h3 class="text-sm text-gray-400 uppercase tracking-wide">Thread</h3>
+        {% for t in thread %}
+            {% if t.id != tweet.id %}
+            <div class="bg-gray-800 rounded-lg p-4 opacity-75 hover:opacity-100 transition-opacity">
+                <a href="/tweet/{{ t.id }}" class="hover:text-blue-400">
+                    <p class="text-sm">{{ t.full_text }}</p>
+                    <p class="text-xs text-gray-500 mt-2">{{ t.created_at.strftime('%b %d, %Y %H:%M') }}</p>
+                </a>
+            </div>
+            {% endif %}
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <!-- Main tweet -->
+    <div class="bg-gray-800 rounded-lg p-6 border border-gray-700">
+        <p class="text-lg whitespace-pre-wrap">{{ tweet.full_text }}</p>
+
+        <!-- Media -->
+        {% if media %}
+        <div class="mt-4 grid gap-2 {% if media|length > 1 %}grid-cols-2{% endif %}">
+            {% for m in media %}
+                {% if m.media_type == 'photo' %}
+                <img src="/media/{{ m.local_path }}" alt="{{ m.alt_text or 'Tweet image' }}"
+                     class="rounded-lg max-w-full h-auto">
+                {% elif m.media_type == 'video' %}
+                <video controls class="rounded-lg max-w-full">
+                    <source src="/media/{{ m.local_path }}" type="video/mp4">
+                </video>
+                {% endif %}
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <div class="mt-4 flex items-center gap-6 text-sm text-gray-400">
+            <span>{{ tweet.created_at.strftime('%b %d, %Y at %H:%M') }}</span>
+            <span>{{ tweet.retweet_count }} retweets</span>
+            <span>{{ tweet.favorite_count }} likes</span>
+        </div>
+
+        {% if tweet.hashtags %}
+        <div class="mt-3 flex flex-wrap gap-2">
+            {% for tag in tweet.hashtags %}
+            <a href="/search?q=%23{{ tag }}" class="text-blue-400 text-sm hover:underline">#{{ tag }}</a>
+            {% endfor %}
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Similar tweets -->
+    {% if similar %}
+    <div class="space-y-4">
+        <h3 class="text-lg font-semibold">Similar Tweets</h3>
+        {% for s in similar %}
+        <div class="bg-gray-800 rounded-lg p-4 hover:bg-gray-750 transition-colors">
+            <a href="/tweet/{{ s.id }}">
+                <p class="text-sm">{{ s.full_text[:200] }}{% if s.full_text|length > 200 %}...{% endif %}</p>
+                <div class="flex items-center gap-4 mt-2 text-xs text-gray-500">
+                    <span>{{ s.created_at.strftime('%b %d, %Y') }}</span>
+                    <span>{{ (s.similarity * 100)|round(1) }}% similar</span>
+                </div>
+            </a>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

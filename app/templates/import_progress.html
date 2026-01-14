@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+
+{% block title %}Importing... - Birdwatch{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto space-y-8">
+    <div class="text-center space-y-2">
+        <h1 class="text-2xl font-bold">Importing Archive</h1>
+        <p class="text-gray-400">Please wait while your tweets are being imported...</p>
+    </div>
+
+    <div class="bg-gray-800 rounded-lg p-6"
+         hx-ext="sse"
+         sse-connect="/import/progress/{{ job_id }}"
+         sse-swap="message">
+        <div id="progress-content" class="space-y-4">
+            <div class="flex items-center gap-3">
+                <svg class="animate-spin h-6 w-6 text-blue-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <span class="text-lg">Starting import...</span>
+            </div>
+
+            <div class="w-full bg-gray-700 rounded-full h-2.5">
+                <div id="progress-bar" class="bg-blue-600 h-2.5 rounded-full transition-all duration-300" style="width: 0%"></div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-4 text-center">
+                <div>
+                    <p class="text-2xl font-bold text-blue-400" id="tweets-count">0</p>
+                    <p class="text-sm text-gray-400">tweets processed</p>
+                </div>
+                <div>
+                    <p class="text-2xl font-bold text-green-400" id="media-count">0</p>
+                    <p class="text-sm text-gray-400">media files</p>
+                </div>
+            </div>
+
+            <p class="text-sm text-gray-500" id="current-file">Preparing...</p>
+        </div>
+    </div>
+</div>
+
+<script>
+// Handle SSE updates
+document.body.addEventListener('htmx:sseMessage', function(event) {
+    const data = JSON.parse(event.detail.data.replace(/'/g, '"'));
+
+    if (data.error) {
+        document.getElementById('progress-content').innerHTML = `
+            <div class="text-red-400 text-center">
+                <p class="text-lg font-semibold">Import failed</p>
+                <p class="text-sm mt-2">${data.error}</p>
+                <a href="/import" class="inline-block mt-4 px-4 py-2 bg-gray-700 rounded hover:bg-gray-600">Try again</a>
+            </div>
+        `;
+        return;
+    }
+
+    if (data.status === 'completed') {
+        document.getElementById('progress-content').innerHTML = `
+            <div class="text-green-400 text-center">
+                <p class="text-lg font-semibold">Import completed!</p>
+                <p class="text-sm mt-2">${data.tweets_processed} tweets imported</p>
+                <a href="/" class="inline-block mt-4 px-4 py-2 bg-blue-600 rounded hover:bg-blue-700">Start searching</a>
+            </div>
+        `;
+        return;
+    }
+
+    // Update progress
+    document.getElementById('tweets-count').textContent = data.tweets_processed || 0;
+    document.getElementById('media-count').textContent = data.media_processed || 0;
+
+    if (data.current_file) {
+        document.getElementById('current-file').textContent = `Processing: ${data.current_file}`;
+    }
+
+    if (data.tweets_total > 0) {
+        const percent = Math.round((data.tweets_processed / data.tweets_total) * 100);
+        document.getElementById('progress-bar').style.width = `${percent}%`;
+    }
+});
+</script>
+{% endblock %}

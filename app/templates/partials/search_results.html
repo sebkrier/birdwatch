@@ -1,0 +1,298 @@
+{% if source_tweet %}
+<div class="bg-blue-900/30 border border-blue-700 rounded-lg p-4 mb-4">
+    <p class="text-sm text-blue-400 mb-2">Finding tweets similar to:</p>
+    <p class="text-gray-200">{{ source_tweet.full_text[:200] }}{% if source_tweet.full_text|length > 200 %}...{% endif %}</p>
+    <a href="/" class="text-sm text-blue-400 hover:underline mt-2 inline-block">Clear and search again</a>
+</div>
+{% endif %}
+
+{% if tweets %}
+<div class="space-y-4">
+    <!-- Results header with count and sort options -->
+    <div class="flex flex-wrap items-center justify-between gap-4">
+        <p class="text-sm text-gray-400">
+            {% if total_count is defined and total_count > showing %}
+                Showing {{ showing }} of {{ total_count }} results{% if query and not source_tweet %} for "{{ query }}"{% endif %}
+            {% else %}
+                Found {{ total_count if total_count is defined else tweets|length }} results{% if query and not source_tweet %} for "{{ query }}"{% endif %}
+            {% endif %}
+        </p>
+
+        <!-- Sort buttons for results -->
+        <div class="flex items-center gap-2 text-sm">
+            <span class="text-gray-500">Sort:</span>
+            <button onclick="resortResults('relevance')" class="sort-btn px-2 py-1 rounded hover:bg-gray-700 text-gray-400 hover:text-white" data-sort="relevance">Relevance</button>
+            <button onclick="resortResults('date_desc')" class="sort-btn px-2 py-1 rounded hover:bg-gray-700 text-gray-400 hover:text-white" data-sort="date_desc">Newest</button>
+            <button onclick="resortResults('date_asc')" class="sort-btn px-2 py-1 rounded hover:bg-gray-700 text-gray-400 hover:text-white" data-sort="date_asc">Oldest</button>
+            <button onclick="resortResults('likes')" class="sort-btn px-2 py-1 rounded hover:bg-gray-700 text-gray-400 hover:text-white" data-sort="likes">Most Liked</button>
+            <button onclick="resortResults('category')" class="sort-btn px-2 py-1 rounded hover:bg-gray-700 text-gray-400 hover:text-white" data-sort="category">By Category</button>
+        </div>
+    </div>
+
+    {% for tweet in tweets %}
+    <div class="tweet-card bg-gray-800 rounded-lg p-4 hover:bg-gray-750 transition-colors border border-gray-700"
+         data-date="{{ tweet.created_at.isoformat() }}"
+         data-likes="{{ tweet.favorite_count or 0 }}"
+         data-retweets="{{ tweet.retweet_count or 0 }}"
+         data-category="{{ tweet.category_names[0] if tweet.category_names else 'Uncategorized' }}">
+        <div class="flex justify-between items-start gap-4">
+            <a href="/tweet/{{ tweet.id }}" class="block flex-1">
+                <p class="whitespace-pre-wrap">{{ tweet.full_text }}</p>
+            </a>
+            {% if tweet.has_media %}
+            <span class="flex-shrink-0 text-gray-500" title="Has media">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                </svg>
+            </span>
+            {% endif %}
+        </div>
+
+        <div class="flex flex-wrap items-center gap-3 mt-3 text-sm text-gray-400">
+            <span>{{ tweet.created_at.strftime('%b %d, %Y') }}</span>
+
+            {% if tweet.retweet_count %}
+            <span class="flex items-center gap-1">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                </svg>
+                {{ tweet.retweet_count }}
+            </span>
+            {% endif %}
+
+            {% if tweet.favorite_count %}
+            <span class="flex items-center gap-1">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"></path>
+                </svg>
+                {{ tweet.favorite_count }}
+            </span>
+            {% endif %}
+
+            {% if tweet.is_retweet %}
+            <span class="px-2 py-0.5 bg-gray-700 rounded text-xs">RT</span>
+            {% endif %}
+
+            {% if tweet.is_reply %}
+            <span class="px-2 py-0.5 bg-gray-700 rounded text-xs">Reply</span>
+            {% endif %}
+
+            {% if tweet.similarity is defined and tweet.similarity %}
+            <span class="px-2 py-0.5 bg-green-900 text-green-300 rounded text-xs">
+                {{ "%.0f"|format(tweet.similarity * 100) }}% similar
+            </span>
+            {% endif %}
+
+            {% if tweet.rank is defined and tweet.rank %}
+            <span class="px-2 py-0.5 bg-purple-900 text-purple-300 rounded text-xs" title="Text relevance score">
+                {{ "%.2f"|format(tweet.rank) }} relevance
+            </span>
+            {% endif %}
+
+            {% if tweet.combined_score is defined and tweet.combined_score %}
+            <span class="px-2 py-0.5 bg-purple-900 text-purple-300 rounded text-xs" title="Hybrid score (text + semantic)">
+                {{ "%.2f"|format(tweet.combined_score) }} score
+            </span>
+            {% endif %}
+
+            {% if tweet.is_thread or tweet.conversation_id %}
+            <span class="px-2 py-0.5 bg-yellow-900 text-yellow-300 rounded text-xs flex items-center gap-1" title="Part of a thread">
+                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z"></path>
+                </svg>
+                Thread
+            </span>
+            {% endif %}
+        </div>
+
+        <!-- Categories -->
+        {% if tweet.category_names %}
+        <div class="flex flex-wrap items-center gap-2 mt-2">
+            {% for cat_name in tweet.category_names %}
+            <span class="px-2 py-0.5 bg-blue-900/50 text-blue-300 rounded text-xs">{{ cat_name }}</span>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        {% if tweet.hashtags %}
+        <div class="flex flex-wrap gap-2 mt-2">
+            {% for tag in tweet.hashtags %}
+            <span class="text-blue-400 text-sm">#{{ tag }}</span>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <div class="flex gap-4 mt-3 pt-3 border-t border-gray-700">
+            <a href="/tweet/{{ tweet.id }}" class="text-sm text-blue-400 hover:underline">View tweet</a>
+            <a href="/search?similar_to={{ tweet.id }}" class="text-sm text-green-400 hover:underline">Find similar</a>
+            <a href="https://twitter.com/sebkrier/status/{{ tweet.id }}" target="_blank" rel="noopener" class="text-sm text-gray-400 hover:text-white hover:underline flex items-center gap-1">
+                <svg class="w-3 h-3" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+                View on X
+            </a>
+        </div>
+    </div>
+    {% endfor %}
+
+    <!-- Load More button -->
+    {% if total_count is defined and showing is defined and showing < total_count %}
+    <div class="text-center py-4">
+        <button id="load-more-btn"
+                class="px-6 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg text-sm font-medium transition-colors"
+                data-offset="{{ showing }}"
+                data-query="{{ query|e }}"
+                data-total="{{ total_count }}"
+                onclick="loadMoreResults(this)">
+            Load More ({{ total_count - showing }} remaining)
+        </button>
+        <div id="load-more-spinner" class="hidden">
+            <svg class="animate-spin h-5 w-5 text-blue-400 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<script>
+// Highlight search terms in results
+function highlightSearchTerms() {
+    const query = '{{ query|default("", true)|e }}';
+    if (!query || query.startsWith('Similar to:')) return;
+
+    const terms = query.toLowerCase().split(/\s+/).filter(t => t.length > 2);
+    if (terms.length === 0) return;
+
+    document.querySelectorAll('.tweet-card p.whitespace-pre-wrap').forEach(p => {
+        let html = p.innerHTML;
+        terms.forEach(term => {
+            const regex = new RegExp(`(${term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+            html = html.replace(regex, '<mark class="bg-yellow-500/30 text-yellow-200 px-0.5 rounded">$1</mark>');
+        });
+        p.innerHTML = html;
+    });
+}
+
+// Run highlighting after content loads
+highlightSearchTerms();
+
+// Client-side sorting of results
+function resortResults(sortBy) {
+    const container = document.querySelector('#results .space-y-4');
+    if (!container) return;
+
+    const cards = Array.from(container.querySelectorAll('.tweet-card'));
+    if (cards.length === 0) return;
+
+    // Update active button
+    document.querySelectorAll('.sort-btn').forEach(btn => {
+        btn.classList.remove('bg-blue-600', 'text-white');
+        btn.classList.add('text-gray-400');
+    });
+    const activeBtn = document.querySelector(`.sort-btn[data-sort="${sortBy}"]`);
+    if (activeBtn) {
+        activeBtn.classList.add('bg-blue-600', 'text-white');
+        activeBtn.classList.remove('text-gray-400');
+    }
+
+    // Sort cards
+    cards.sort((a, b) => {
+        switch(sortBy) {
+            case 'date_desc':
+                return new Date(b.dataset.date) - new Date(a.dataset.date);
+            case 'date_asc':
+                return new Date(a.dataset.date) - new Date(b.dataset.date);
+            case 'likes':
+                return parseInt(b.dataset.likes) - parseInt(a.dataset.likes);
+            case 'retweets':
+                return parseInt(b.dataset.retweets) - parseInt(a.dataset.retweets);
+            case 'category':
+                return (a.dataset.category || '').localeCompare(b.dataset.category || '');
+            default: // relevance - keep original order
+                return 0;
+        }
+    });
+
+    // Re-append in new order
+    cards.forEach(card => container.appendChild(card));
+}
+
+// Load more results
+async function loadMoreResults(btn) {
+    const offset = parseInt(btn.dataset.offset);
+    const query = btn.dataset.query;
+    const total = parseInt(btn.dataset.total);
+    const batchSize = 50;
+
+    btn.classList.add('hidden');
+    document.getElementById('load-more-spinner').classList.remove('hidden');
+
+    try {
+        // Get current form values for filters
+        const form = document.getElementById('search-form');
+        const formData = new FormData(form);
+        formData.set('q', query);
+        formData.set('offset', offset);
+        formData.set('limit', batchSize);
+
+        const params = new URLSearchParams(formData);
+        const response = await fetch('/search/more?' + params.toString());
+
+        if (!response.ok) throw new Error('Failed to load more');
+
+        const html = await response.text();
+
+        // Find the container and append new tweets before the load more button
+        const container = document.querySelector('#results .space-y-4');
+        const loadMoreDiv = btn.parentElement;
+
+        // Create temp container to parse the HTML
+        const temp = document.createElement('div');
+        temp.innerHTML = html;
+
+        // Append each tweet card
+        const newCards = temp.querySelectorAll('.tweet-card');
+        newCards.forEach(card => {
+            container.insertBefore(card, loadMoreDiv);
+        });
+
+        // Update the button state
+        const newOffset = offset + newCards.length;
+        const remaining = total - newOffset;
+
+        if (remaining > 0) {
+            btn.dataset.offset = newOffset;
+            btn.textContent = `Load More (${remaining} remaining)`;
+            btn.classList.remove('hidden');
+        } else {
+            loadMoreDiv.innerHTML = '<p class="text-gray-500 text-sm">All results loaded</p>';
+        }
+
+        // Update the showing count in header
+        const headerP = container.querySelector('p.text-sm.text-gray-400');
+        if (headerP) {
+            headerP.textContent = `Showing ${newOffset} of ${total} results for "${query}"`;
+        }
+
+        // Re-run highlighting on new content
+        highlightSearchTerms();
+
+    } catch (err) {
+        console.error('Load more error:', err);
+        btn.textContent = 'Error loading - try again';
+        btn.classList.remove('hidden');
+    }
+
+    document.getElementById('load-more-spinner').classList.add('hidden');
+}
+</script>
+{% elif query %}
+<div class="text-center py-12 text-gray-400">
+    <p class="text-lg">No tweets found{% if not source_tweet %} for "{{ query }}"{% endif %}</p>
+    <p class="text-sm mt-2">Try different keywords or use semantic search</p>
+</div>
+{% else %}
+<div class="text-center py-12 text-gray-400">
+    <p>Enter a search term to find tweets</p>
+</div>
+{% endif %}

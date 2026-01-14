@@ -1,0 +1,145 @@
+{% extends "base.html" %}
+
+{% block title %}Clusters - Birdwatch{% endblock %}
+
+{% block head %}
+<style>
+.collapse-btn {
+    transition: transform 0.2s;
+}
+.collapse-btn.collapsed {
+    transform: rotate(-90deg);
+}
+.cluster-children {
+    max-height: 2000px;
+    overflow: hidden;
+    transition: max-height 0.3s ease-out;
+}
+.cluster-children.collapsed {
+    max-height: 0;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <div class="flex justify-between items-center">
+        <div>
+            <h1 class="text-2xl font-bold">Tweet Clusters</h1>
+            <p class="text-gray-400">{{ hierarchy|length }} themes with {{ hierarchy.values()|map(attribute='children')|map('length')|sum }} clusters</p>
+        </div>
+        <a href="/explore" class="text-blue-400 hover:underline">View visualization</a>
+    </div>
+
+    <!-- Super-cluster hierarchy -->
+    {% for sc_id, data in hierarchy.items() %}
+    <div class="bg-gray-800 rounded-lg overflow-hidden">
+        <!-- Super-cluster header (collapsible) -->
+        <button class="w-full p-4 flex items-center justify-between hover:bg-gray-750 transition-colors"
+                onclick="toggleSuperCluster('sc-{{ sc_id }}')">
+            <div class="flex items-center gap-3">
+                <svg class="collapse-btn w-5 h-5 text-gray-400" id="btn-sc-{{ sc_id }}"
+                     fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                </svg>
+                <div class="w-3 h-3 rounded-full" style="background-color: {{ data.super_cluster.color }};"></div>
+                <h2 class="text-xl font-semibold">{{ data.super_cluster.label }}</h2>
+            </div>
+            <div class="flex items-center gap-4">
+                <span class="text-sm text-gray-400">{{ data.children|length }} clusters</span>
+                <span class="text-lg font-bold">{{ data.super_cluster.tweet_count }} tweets</span>
+            </div>
+        </button>
+
+        <!-- Child clusters -->
+        <div class="cluster-children border-t border-gray-700" id="sc-{{ sc_id }}">
+            {% for cluster in data.children %}
+            <div class="p-4 border-b border-gray-700 last:border-b-0 ml-8">
+                <div class="flex justify-between items-start mb-2">
+                    <h3 class="text-lg font-medium text-blue-400">
+                        {{ cluster.label or 'Cluster ' ~ cluster.id }}
+                    </h3>
+                    <span class="font-semibold">{{ cluster.tweet_count }}</span>
+                </div>
+
+                {% if samples.get(cluster.id) %}
+                <div class="space-y-2 mt-3">
+                    {% for tweet in samples[cluster.id] %}
+                    <div class="bg-gray-700 rounded p-3 text-sm">
+                        <a href="/tweet/{{ tweet.id }}" class="hover:text-blue-400">
+                            {{ tweet.full_text[:180] }}{% if tweet.full_text|length > 180 %}...{% endif %}
+                        </a>
+                        <div class="flex gap-3 mt-1 text-xs text-gray-500">
+                            <span>{{ tweet.favorite_count }} likes</span>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endfor %}
+
+    <!-- Uncategorized clusters -->
+    {% if uncategorized %}
+    <div class="bg-gray-800 rounded-lg overflow-hidden">
+        <button class="w-full p-4 flex items-center justify-between hover:bg-gray-750 transition-colors"
+                onclick="toggleSuperCluster('sc-uncategorized')">
+            <div class="flex items-center gap-3">
+                <svg class="collapse-btn w-5 h-5 text-gray-400" id="btn-sc-uncategorized"
+                     fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                </svg>
+                <div class="w-3 h-3 rounded-full bg-gray-500"></div>
+                <h2 class="text-xl font-semibold">Uncategorized</h2>
+            </div>
+            <div class="flex items-center gap-4">
+                <span class="text-sm text-gray-400">{{ uncategorized|length }} clusters</span>
+            </div>
+        </button>
+
+        <div class="cluster-children border-t border-gray-700" id="sc-uncategorized">
+            {% for cluster in uncategorized %}
+            <div class="p-4 border-b border-gray-700 last:border-b-0 ml-8">
+                <div class="flex justify-between items-start mb-2">
+                    <h3 class="text-lg font-medium text-blue-400">
+                        {{ cluster.label or 'Cluster ' ~ cluster.id }}
+                    </h3>
+                    <span class="font-semibold">{{ cluster.tweet_count }}</span>
+                </div>
+
+                {% if samples.get(cluster.id) %}
+                <div class="space-y-2 mt-3">
+                    {% for tweet in samples[cluster.id] %}
+                    <div class="bg-gray-700 rounded p-3 text-sm">
+                        <a href="/tweet/{{ tweet.id }}" class="hover:text-blue-400">
+                            {{ tweet.full_text[:180] }}{% if tweet.full_text|length > 180 %}...{% endif %}
+                        </a>
+                        <div class="flex gap-3 mt-1 text-xs text-gray-500">
+                            <span>{{ tweet.favorite_count }} likes</span>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function toggleSuperCluster(id) {
+    const content = document.getElementById(id);
+    const btn = document.getElementById('btn-' + id);
+
+    content.classList.toggle('collapsed');
+    btn.classList.toggle('collapsed');
+}
+</script>
+{% endblock %}

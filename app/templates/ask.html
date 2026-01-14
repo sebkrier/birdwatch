@@ -1,0 +1,341 @@
+{% extends "base.html" %}
+
+{% block title %}Ask - Birdwatch{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <div class="text-center space-y-2">
+        <h1 class="text-3xl font-bold">Ask About Your Tweets</h1>
+        <p class="text-gray-400">Ask natural language questions about your Twitter archive</p>
+    </div>
+
+    <!-- API Key Setup (collapsible) -->
+    <div id="api-key-section" class="max-w-3xl mx-auto">
+        <button onclick="toggleApiKey()" class="text-sm text-blue-400 hover:underline flex items-center gap-1">
+            <svg id="key-chevron" class="w-4 h-4 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+            </svg>
+            Configure Anthropic API Key
+        </button>
+        <div id="api-key-form" class="hidden mt-2 p-4 bg-gray-800 rounded-lg">
+            <p class="text-sm text-gray-400 mb-2">Enter your Anthropic API key to enable AI-powered answers.</p>
+            <div class="flex gap-2">
+                <input type="password"
+                       id="api-key-input"
+                       placeholder="Enter Anthropic API key (sk-ant-...)..."
+                       class="flex-1 px-3 py-2 bg-gray-700 border border-gray-600 rounded focus:outline-none focus:border-blue-500 text-sm">
+                <button onclick="saveApiKey()"
+                        class="px-4 py-2 bg-green-600 hover:bg-green-700 rounded text-sm font-medium">
+                    Save
+                </button>
+            </div>
+            <p id="api-key-status" class="text-sm mt-2 hidden"></p>
+        </div>
+    </div>
+
+    <!-- Question Input -->
+    <div class="max-w-3xl mx-auto">
+        <div class="bg-gray-800 rounded-lg p-6 space-y-4">
+            <div class="space-y-2">
+                <label class="block text-sm text-gray-400">Your Question</label>
+                <textarea id="question-input"
+                          rows="3"
+                          placeholder="e.g., What are my most popular tweets about AI? Did I ever tweet about climate change? Summarize my tweets about startups..."
+                          class="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:border-blue-500 resize-none"></textarea>
+            </div>
+
+            <div class="flex items-center justify-between">
+                <label class="flex items-center gap-2 text-sm text-gray-400 cursor-pointer">
+                    <input type="checkbox" id="smart-mode" checked class="rounded">
+                    <span>Smart mode (parses intent for better results)</span>
+                </label>
+
+                <button onclick="askQuestion()"
+                        id="ask-button"
+                        class="px-6 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg font-medium transition-colors flex items-center gap-2">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                    Ask
+                </button>
+            </div>
+
+            <!-- Example questions -->
+            <div class="pt-4 border-t border-gray-700">
+                <p class="text-xs text-gray-500 mb-2">Try these examples:</p>
+                <div class="flex flex-wrap gap-2">
+                    <button onclick="setQuestion('What are my most liked tweets about AI?')" class="text-xs px-2 py-1 bg-gray-700 hover:bg-gray-600 rounded">
+                        Most liked about AI
+                    </button>
+                    <button onclick="setQuestion('Did I ever tweet about climate change?')" class="text-xs px-2 py-1 bg-gray-700 hover:bg-gray-600 rounded">
+                        Climate change?
+                    </button>
+                    <button onclick="setQuestion('Summarize my tweets about startups')" class="text-xs px-2 py-1 bg-gray-700 hover:bg-gray-600 rounded">
+                        Summarize startups
+                    </button>
+                    <button onclick="setQuestion('What topics do I tweet about most?')" class="text-xs px-2 py-1 bg-gray-700 hover:bg-gray-600 rounded">
+                        Main topics
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Answer Section -->
+    <div id="answer-section" class="max-w-3xl mx-auto hidden">
+        <div class="bg-gray-800 rounded-lg p-6 space-y-4">
+            <div class="flex items-center gap-2 text-blue-400">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"></path>
+                </svg>
+                <h3 class="font-semibold">Answer</h3>
+            </div>
+            <div id="answer-content" class="text-gray-200 whitespace-pre-wrap"></div>
+            <div id="answer-meta" class="text-sm text-gray-500"></div>
+        </div>
+    </div>
+
+    <!-- Source Tweets Section -->
+    <div id="sources-section" class="max-w-3xl mx-auto hidden">
+        <div class="bg-gray-800 rounded-lg p-6 space-y-4">
+            <h3 class="font-semibold text-gray-400">Source Tweets</h3>
+            <div id="source-tweets" class="space-y-3"></div>
+        </div>
+    </div>
+
+    <!-- Loading indicator -->
+    <div id="loading" class="max-w-3xl mx-auto hidden">
+        <div class="bg-gray-800 rounded-lg p-6 flex items-center justify-center gap-3 text-gray-400">
+            <svg class="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            <span>Searching tweets and generating answer...</span>
+        </div>
+    </div>
+
+    <!-- Error Section -->
+    <div id="error-section" class="max-w-3xl mx-auto hidden">
+        <div class="bg-red-900/30 border border-red-700 rounded-lg p-4">
+            <p id="error-message" class="text-red-400"></p>
+        </div>
+    </div>
+</div>
+
+<!-- Tweet Modal -->
+<div id="tweet-modal" class="fixed inset-0 bg-black/70 hidden items-center justify-center z-50" onclick="closeTweetModal(event)">
+    <div class="bg-gray-800 rounded-lg p-6 max-w-xl w-full mx-4 max-h-[80vh] overflow-y-auto" onclick="event.stopPropagation()">
+        <div class="flex justify-between items-start mb-4">
+            <span id="modal-tweet-number" class="text-blue-400 font-semibold"></span>
+            <button onclick="closeTweetModal()" class="text-gray-400 hover:text-white">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                </svg>
+            </button>
+        </div>
+        <p id="modal-tweet-text" class="text-gray-200 whitespace-pre-wrap mb-4"></p>
+        <div id="modal-tweet-meta" class="flex flex-wrap gap-4 text-sm text-gray-500"></div>
+    </div>
+</div>
+
+<script>
+// Store tweets globally for citation lookups
+let currentTweets = [];
+
+function toggleApiKey() {
+    const form = document.getElementById('api-key-form');
+    const chevron = document.getElementById('key-chevron');
+    form.classList.toggle('hidden');
+    chevron.classList.toggle('rotate-180');
+}
+
+async function saveApiKey() {
+    const apiKey = document.getElementById('api-key-input').value.trim();
+    const status = document.getElementById('api-key-status');
+
+    if (!apiKey) {
+        status.textContent = 'Please enter an API key';
+        status.className = 'text-sm mt-2 text-red-400';
+        status.classList.remove('hidden');
+        return;
+    }
+
+    try {
+        const response = await fetch('/ask/set-api-key', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({api_key: apiKey})
+        });
+        const result = await response.json();
+
+        if (result.success) {
+            status.textContent = 'API key saved successfully!';
+            status.className = 'text-sm mt-2 text-green-400';
+        } else {
+            status.textContent = result.error || 'Failed to save API key';
+            status.className = 'text-sm mt-2 text-red-400';
+        }
+        status.classList.remove('hidden');
+    } catch (err) {
+        status.textContent = 'Error saving API key: ' + err.message;
+        status.className = 'text-sm mt-2 text-red-400';
+        status.classList.remove('hidden');
+    }
+}
+
+function setQuestion(q) {
+    document.getElementById('question-input').value = q;
+}
+
+async function askQuestion() {
+    const question = document.getElementById('question-input').value.trim();
+    const smartMode = document.getElementById('smart-mode').checked;
+
+    if (!question) {
+        showError('Please enter a question');
+        return;
+    }
+
+    // Show loading, hide other sections
+    document.getElementById('loading').classList.remove('hidden');
+    document.getElementById('answer-section').classList.add('hidden');
+    document.getElementById('sources-section').classList.add('hidden');
+    document.getElementById('error-section').classList.add('hidden');
+
+    // Disable button
+    const btn = document.getElementById('ask-button');
+    btn.disabled = true;
+    btn.classList.add('opacity-50');
+
+    try {
+        const response = await fetch('/ask/query', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                question: question,
+                smart_mode: smartMode,
+                max_tweets: 100
+            })
+        });
+
+        const result = await response.json();
+
+        if (result.error) {
+            showError(result.error);
+            return;
+        }
+
+        // Store tweets for citation lookups
+        currentTweets = result.tweets || [];
+
+        // Show answer with clickable citations
+        document.getElementById('answer-content').innerHTML = formatAnswerWithCitations(result.answer);
+        document.getElementById('answer-meta').textContent = `Based on ${result.tweet_count} relevant tweets`;
+        document.getElementById('answer-section').classList.remove('hidden');
+
+        // Show source tweets with numbers
+        if (result.tweets && result.tweets.length > 0) {
+            const sourcesDiv = document.getElementById('source-tweets');
+            sourcesDiv.innerHTML = result.tweets.map((tweet, index) => `
+                <div class="bg-gray-700 rounded p-3 cursor-pointer hover:bg-gray-600 transition-colors" onclick="showTweet(${index})">
+                    <div class="flex items-start gap-2">
+                        <span class="text-blue-400 font-semibold text-sm">[${index + 1}]</span>
+                        <div class="flex-1">
+                            <p class="text-sm text-gray-200">${escapeHtml(tweet.full_text)}</p>
+                            <div class="flex gap-4 mt-2 text-xs text-gray-500">
+                                <span>${formatDate(tweet.created_at)}</span>
+                                ${tweet.favorite_count ? `<span>${tweet.favorite_count} likes</span>` : ''}
+                                ${tweet.retweet_count ? `<span>${tweet.retweet_count} RTs</span>` : ''}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+            document.getElementById('sources-section').classList.remove('hidden');
+        }
+
+    } catch (err) {
+        showError('Error: ' + err.message);
+    } finally {
+        document.getElementById('loading').classList.add('hidden');
+        btn.disabled = false;
+        btn.classList.remove('opacity-50');
+    }
+}
+
+function showError(message) {
+    document.getElementById('error-message').textContent = message;
+    document.getElementById('error-section').classList.remove('hidden');
+    document.getElementById('loading').classList.add('hidden');
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+function formatDate(dateStr) {
+    if (!dateStr) return '';
+    const date = new Date(dateStr);
+    return date.toLocaleDateString('en-US', {year: 'numeric', month: 'short', day: 'numeric'});
+}
+
+// Format answer text with clickable citation links
+function formatAnswerWithCitations(text) {
+    // Escape HTML first
+    let escaped = escapeHtml(text);
+    // Replace [N] patterns with clickable spans
+    return escaped.replace(/\[(\d+)\]/g, (match, num) => {
+        const index = parseInt(num) - 1;
+        if (index >= 0 && index < currentTweets.length) {
+            return `<span class="text-blue-400 cursor-pointer hover:underline font-semibold" onclick="showTweet(${index})">[${num}]</span>`;
+        }
+        return match;
+    });
+}
+
+// Show tweet in modal
+function showTweet(index) {
+    const tweet = currentTweets[index];
+    if (!tweet) return;
+
+    document.getElementById('modal-tweet-number').textContent = `Tweet [${index + 1}]`;
+    document.getElementById('modal-tweet-text').textContent = tweet.full_text;
+    document.getElementById('modal-tweet-meta').innerHTML = `
+        <span>${formatDate(tweet.created_at)}</span>
+        ${tweet.favorite_count ? `<span>${tweet.favorite_count} likes</span>` : ''}
+        ${tweet.retweet_count ? `<span>${tweet.retweet_count} RTs</span>` : ''}
+        ${tweet.is_retweet ? '<span class="text-yellow-500">Retweet</span>' : ''}
+        ${tweet.is_reply ? '<span class="text-green-500">Reply</span>' : ''}
+    `;
+
+    const modal = document.getElementById('tweet-modal');
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+}
+
+// Close tweet modal
+function closeTweetModal(event) {
+    if (event && event.target !== event.currentTarget) return;
+    const modal = document.getElementById('tweet-modal');
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+}
+
+// Close modal on Escape key
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+        closeTweetModal();
+    }
+});
+
+// Allow Enter key to submit (with Shift+Enter for new line)
+document.getElementById('question-input').addEventListener('keydown', function(e) {
+    if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        askQuestion();
+    }
+});
+</script>
+{% endblock %}

@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Birdwatch{% endblock %}</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/htmx.org@2.0.0"></script>
+    <script src="https://unpkg.com/htmx-ext-sse@2.0.0/sse.js"></script>
+    {% block head %}{% endblock %}
+</head>
+<body class="bg-gray-900 text-gray-100 min-h-screen">
+    <nav class="bg-gray-800 border-b border-gray-700 px-4 py-3">
+        <div class="max-w-6xl mx-auto flex items-center justify-between">
+            <a href="/" class="text-xl font-bold text-blue-400">Birdwatch</a>
+            <div class="flex gap-4">
+                <a href="/" class="hover:text-blue-400 transition-colors">Search</a>
+                <a href="/ask" class="hover:text-blue-400 transition-colors">Ask</a>
+                <a href="/explore" class="hover:text-blue-400 transition-colors">Explore</a>
+                <a href="/import" class="hover:text-blue-400 transition-colors">Import</a>
+            </div>
+        </div>
+    </nav>
+    <main class="max-w-6xl mx-auto px-4 py-8">
+        {% block content %}{% endblock %}
+    </main>
+    {% block scripts %}{% endblock %}
+</body>
+</html>

@@ -1,0 +1,30 @@
+[project]
+name = "birdwatch"
+version = "0.1.0"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.109.0",
+    "uvicorn[standard]>=0.27.0",
+    "psycopg[binary,pool]>=3.1.0",
+    "pgvector>=0.2.0",
+    "litellm>=1.0.0",
+    "pydantic>=2.0.0",
+    "pydantic-settings>=2.0.0",
+    "jinja2>=3.1.0",
+    "python-multipart>=0.0.6",
+    "aiofiles>=23.0.0",
+    "orjson>=3.9.0",
+    "pillow>=10.0.0",
+    "python-dotenv>=1.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.0",
+    "pytest-asyncio>=0.23.0",
+    "httpx>=0.26.0",
+]
+
+[tool.setuptools.packages.find]
+include = ["app*", "tests*"]
+exclude = ["media*"]

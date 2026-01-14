@@ -1,0 +1,14 @@
+<div class="bg-gray-800 rounded-lg p-4 hover:bg-gray-750 transition-colors border border-gray-700">
+    <a href="/tweet/{{ tweet.id }}" class="block">
+        <p class="whitespace-pre-wrap">{{ tweet.full_text }}</p>
+        <div class="flex items-center gap-4 mt-3 text-sm text-gray-400">
+            <span>{{ tweet.created_at.strftime('%b %d, %Y') }}</span>
+            {% if tweet.retweet_count %}
+            <span>{{ tweet.retweet_count }} RT</span>
+            {% endif %}
+            {% if tweet.favorite_count %}
+            <span>{{ tweet.favorite_count }} likes</span>
+            {% endif %}
+        </div>
+    </a>
+</div>

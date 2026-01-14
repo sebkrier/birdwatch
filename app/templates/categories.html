@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+
+{% block title %}Categories - Birdwatch{% endblock %}
+
+{% block head %}
+<style>
+.category-card {
+    transition: all 0.2s;
+}
+.category-card:hover {
+    transform: translateY(-2px);
+}
+.subcluster-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 11px;
+    background: rgba(255,255,255,0.1);
+    margin: 2px;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <div class="flex justify-between items-center">
+        <div>
+            <h1 class="text-2xl font-bold">All Categories</h1>
+            <p class="text-gray-400">{{ categories|length }} categories with {{ subclusters_by_cat.values()|sum(attribute='__len__', start=0) if subclusters_by_cat else 0 }} sub-clusters</p>
+        </div>
+        <a href="/explore" class="text-blue-400 hover:underline">&larr; Back to visualization</a>
+    </div>
+
+    <div class="grid gap-6">
+        {% for cat in categories %}
+        <div class="category-card bg-gray-800 rounded-lg overflow-hidden">
+            <!-- Category Header -->
+            <div class="p-4 border-b border-gray-700" style="border-left: 4px solid {{ cat.color or '#6b7280' }};">
+                <div class="flex justify-between items-start">
+                    <div>
+                        <h2 class="text-xl font-semibold" style="color: {{ cat.color or '#ffffff' }};">
+                            {{ cat.name }}
+                        </h2>
+                        {% if cat.description %}
+                        <p class="text-gray-400 text-sm mt-1">{{ cat.description }}</p>
+                        {% endif %}
+                    </div>
+                    <span class="text-2xl font-bold text-gray-400">{{ cat.tweet_count }}</span>
+                </div>
+
+                <!-- Sub-clusters -->
+                {% if subclusters_by_cat.get(cat.id) %}
+                <div class="mt-3">
+                    <div class="text-xs text-gray-500 mb-1">SUB-CLUSTERS</div>
+                    <div class="flex flex-wrap">
+                        {% for sc in subclusters_by_cat[cat.id][:8] %}
+                        <span class="subcluster-badge text-gray-300">
+                            {{ sc.label }} ({{ sc.tweet_count }})
+                        </span>
+                        {% endfor %}
+                        {% if subclusters_by_cat[cat.id]|length > 8 %}
+                        <span class="subcluster-badge text-gray-500">
+                            +{{ subclusters_by_cat[cat.id]|length - 8 }} more
+                        </span>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- Sample Tweets -->
+            {% if samples.get(cat.id) %}
+            <div class="p-4 space-y-3">
+                <div class="text-xs text-gray-500">TOP TWEETS</div>
+                {% for tweet in samples[cat.id][:3] %}
+                <div class="bg-gray-900 rounded p-3">
+                    <p class="text-sm text-gray-300">{{ tweet.full_text[:200] }}{% if tweet.full_text|length > 200 %}...{% endif %}</p>
+                    <div class="flex items-center gap-3 mt-2 text-xs text-gray-500">
+                        <span>{{ tweet.created_at.strftime('%b %d, %Y') if tweet.created_at else '' }}</span>
+                        {% if tweet.favorite_count %}
+                        <span class="flex items-center gap-1">
+                            <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 24 24">
+                                <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
+                            </svg>
+                            {{ tweet.favorite_count }}
+                        </span>
+                        {% endif %}
+                        <a href="/tweet/{{ tweet.id }}" class="text-blue-400 hover:underline ml-auto">View &rarr;</a>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+
+            <!-- Search in category link -->
+            <div class="px-4 pb-4">
+                <a href="/search?category={{ cat.id }}" class="text-sm text-blue-400 hover:underline">
+                    Search in {{ cat.name }} &rarr;
+                </a>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,39 @@
+# Environment
+.env
+.env.local
+
+# Database
+.pgdata/
+
+# Media files
+media/
+
+# Python
+*.pyc
+__pycache__/
+.pytest_cache/
+.venv/
+*.egg-info/
+dist/
+build/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Pixi
+.pixi/
+
+# Temp files
+*.tmp
+*.temp
+/tmp/
+
+# Logs
+*.log
